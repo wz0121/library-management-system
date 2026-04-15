@@ -2,27 +2,138 @@ import { useState } from 'react'
 
 export default function LibrarianDashboard({ librarian, onLogout }) {
   const [showConfirm, setShowConfirm] = useState(false)
-
+  const [activeTab, setActiveTab] = useState('borrow') // borrow, return, search
+  
+  // 借阅相关状态
+  const [studentSearch, setStudentSearch] = useState('')
+  const [students, setStudents] = useState([])
+  const [selectedStudent, setSelectedStudent] = useState(null)
+  const [bookSearch, setBookSearch] = useState('')
+  const [books, setBooks] = useState([])
+  const [selectedBook, setSelectedBook] = useState(null)
+  const [message, setMessage] = useState('')
+  const [loading, setLoading] = useState(false)
+  
+  // 归还相关状态
+  const [loanId, setLoanId] = useState('')
+  
+  // 搜索学生
+  const searchStudents = async () => {
+    if (!studentSearch.trim()) return
+    setLoading(true)
+    const token = localStorage.getItem('librarianToken')
+    try {
+      const res = await fetch(`http://localhost:3001/loans/users/search?keyword=${studentSearch}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      const data = await res.json()
+      setStudents(data.users || [])
+    } catch (err) {
+      setMessage('搜索失败')
+    }
+    setLoading(false)
+  }
+  
+  // 搜索图书
+  const searchBooks = async () => {
+    if (!bookSearch.trim()) return
+    setLoading(true)
+    const token = localStorage.getItem('librarianToken')
+    try {
+      const res = await fetch(`http://localhost:3001/loans/books/search?keyword=${bookSearch}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      const data = await res.json()
+      setBooks(data.books || [])
+    } catch (err) {
+      setMessage('搜索失败')
+    }
+    setLoading(false)
+  }
+  
+  // 借出图书
+  const handleLend = async () => {
+    if (!selectedStudent || !selectedBook) {
+      setMessage('请选择学生和图书')
+      return
+    }
+    setLoading(true)
+    const token = localStorage.getItem('librarianToken')
+    try {
+      const res = await fetch('http://localhost:3001/loans/lend', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          userId: selectedStudent.id,
+          bookId: selectedBook.id
+        })
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setMessage(`借阅成功！${selectedBook.title} 借给 ${selectedStudent.name}`)
+        setSelectedStudent(null)
+        setSelectedBook(null)
+        setStudents([])
+        setBooks([])
+        setStudentSearch('')
+        setBookSearch('')
+      } else {
+        setMessage(data.message || '借阅失败')
+      }
+    } catch (err) {
+      setMessage('借阅失败')
+    }
+    setLoading(false)
+  }
+  
+  // 归还图书
+  const handleReturn = async () => {
+    if (!loanId.trim()) {
+      setMessage('请输入借阅ID')
+      return
+    }
+    setLoading(true)
+    const token = localStorage.getItem('librarianToken')
+    try {
+      const res = await fetch('http://localhost:3001/loans/return', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ loanId: parseInt(loanId) })
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setMessage(`归还成功！借阅ID: ${loanId}`)
+        setLoanId('')
+      } else {
+        setMessage(data.message || '归还失败')
+      }
+    } catch (err) {
+      setMessage('归还失败')
+    }
+    setLoading(false)
+  }
+  
   const handleLogout = () => {
     localStorage.removeItem('librarianToken')
     localStorage.removeItem('librarianInfo')
-    localStorage.removeItem('savedEmployeeId')
-    if (onLogout) {
-      onLogout()
-    }
+    if (onLogout) onLogout()
   }
-
-  // 获取当前时间问候语
+  
   const getGreeting = () => {
     const hour = new Date().getHours()
     if (hour < 12) return '早上好'
     if (hour < 18) return '下午好'
     return '晚上好'
   }
-
+  
   return (
     <div className="min-h-screen bg-gray-100">
-      {/* 顶部导航栏 */}
       <header className="bg-white shadow-md sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
           <div className="flex items-center gap-3">
@@ -36,76 +147,149 @@ export default function LibrarianDashboard({ librarian, onLogout }) {
               <p className="font-semibold text-gray-800">{librarian?.name}</p>
               <p className="text-xs text-gray-400">工号：{librarian?.employeeId}</p>
             </div>
-            <button
-              onClick={() => setShowConfirm(true)}
-              className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition text-sm"
-            >
+            <button onClick={() => setShowConfirm(true)} className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition text-sm">
               退出登录
             </button>
           </div>
         </div>
       </header>
-
-      {/* 主要内容 */}
+      
       <main className="max-w-7xl mx-auto px-4 py-8">
-        {/* 欢迎卡片 */}
         <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg shadow-lg p-6 mb-8 text-white">
-          <h2 className="text-2xl font-bold mb-2">
-            {getGreeting()}，{librarian?.name}！
-          </h2>
+          <h2 className="text-2xl font-bold mb-2">{getGreeting()}，{librarian?.name}！</h2>
           <p className="opacity-90">欢迎回来，您可以通过下方功能管理图书馆系统。</p>
         </div>
-
-        {/* 功能卡片 */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-white p-6 rounded-lg shadow-lg hover:shadow-xl transition">
-            <div className="text-4xl mb-4">📖</div>
-            <h2 className="text-xl font-bold mb-2">图书管理</h2>
-            <p className="text-gray-500 text-sm mb-4">添加、编辑、删除图书信息</p>
-            <button className="w-full bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition">
-              进入 →
-            </button>
-          </div>
-
-          <div className="bg-white p-6 rounded-lg shadow-lg hover:shadow-xl transition">
-            <div className="text-4xl mb-4">📋</div>
-            <h2 className="text-xl font-bold mb-2">借阅管理</h2>
-            <p className="text-gray-500 text-sm mb-4">管理借阅记录、处理还书</p>
-            <button className="w-full bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition">
-              进入 →
-            </button>
-          </div>
-
-          <div className="bg-white p-6 rounded-lg shadow-lg hover:shadow-xl transition">
-            <div className="text-4xl mb-4">👥</div>
-            <h2 className="text-xl font-bold mb-2">读者管理</h2>
-            <p className="text-gray-500 text-sm mb-4">查看读者信息、借阅历史</p>
-            <button className="w-full bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition">
-              进入 →
-            </button>
-          </div>
+        
+        {/* 标签页切换 */}
+        <div className="flex gap-2 mb-6 border-b">
+          <button
+            onClick={() => { setActiveTab('borrow'); setMessage('') }}
+            className={`px-6 py-2 text-lg font-medium ${activeTab === 'borrow' ? 'border-b-2 border-blue-500 text-blue-600' : 'text-gray-500'}`}
+          >
+            📖 借阅图书
+          </button>
+          <button
+            onClick={() => { setActiveTab('return'); setMessage('') }}
+            className={`px-6 py-2 text-lg font-medium ${activeTab === 'return' ? 'border-b-2 border-blue-500 text-blue-600' : 'text-gray-500'}`}
+          >
+            ↩️ 归还图书
+          </button>
         </div>
+        
+        {message && (
+          <div className={`p-4 rounded-lg mb-6 ${message.includes('成功') ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+            {message}
+          </div>
+        )}
+        
+        {/* 借阅图书界面 */}
+        {activeTab === 'borrow' && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* 左侧：搜索学生 */}
+            <div className="bg-white rounded-lg shadow-lg p-6">
+              <h3 className="text-lg font-bold mb-4">👤 选择学生</h3>
+              <div className="flex gap-2 mb-4">
+                <input
+                  type="text"
+                  value={studentSearch}
+                  onChange={(e) => setStudentSearch(e.target.value)}
+                  placeholder="输入学号或邮箱"
+                  className="flex-1 px-4 py-2 border rounded-lg"
+                />
+                <button onClick={searchStudents} disabled={loading} className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600">
+                  搜索
+                </button>
+              </div>
+              {students.length > 0 && (
+                <div className="border rounded-lg divide-y">
+                  {students.map(s => (
+                    <div key={s.id} className={`p-3 cursor-pointer hover:bg-gray-50 ${selectedStudent?.id === s.id ? 'bg-blue-50 border-l-4 border-blue-500' : ''}`} onClick={() => setSelectedStudent(s)}>
+                      <p className="font-medium">{s.name}</p>
+                      <p className="text-sm text-gray-500">学号: {s.studentId} | 邮箱: {s.email}</p>
+                      <p className="text-xs">当前借阅: {s.currentBorrowCount}/3 | {s.hasOverdue ? '⚠️ 有逾期' : '✅ 正常'}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {selectedStudent && (
+                <div className="mt-4 p-3 bg-green-50 rounded-lg">
+                  <p className="text-green-700">✅ 已选择: {selectedStudent.name}</p>
+                </div>
+              )}
+            </div>
+            
+            {/* 右侧：搜索图书 */}
+            <div className="bg-white rounded-lg shadow-lg p-6">
+              <h3 className="text-lg font-bold mb-4">📚 选择图书</h3>
+              <div className="flex gap-2 mb-4">
+                <input
+                  type="text"
+                  value={bookSearch}
+                  onChange={(e) => setBookSearch(e.target.value)}
+                  placeholder="输入书名或ISBN"
+                  className="flex-1 px-4 py-2 border rounded-lg"
+                />
+                <button onClick={searchBooks} disabled={loading} className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600">
+                  搜索
+                </button>
+              </div>
+              {books.length > 0 && (
+                <div className="border rounded-lg divide-y max-h-80 overflow-auto">
+                  {books.map(b => (
+                    <div key={b.id} className={`p-3 cursor-pointer hover:bg-gray-50 ${selectedBook?.id === b.id ? 'bg-blue-50 border-l-4 border-blue-500' : ''}`} onClick={() => setSelectedBook(b)}>
+                      <p className="font-medium">{b.title}</p>
+                      <p className="text-sm text-gray-500">作者: {b.author} | 剩余: {b.availableCopies}/{b.totalCopies}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {selectedBook && (
+                <div className="mt-4 p-3 bg-green-50 rounded-lg">
+                  <p className="text-green-700">✅ 已选择: {selectedBook.title}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+        
+        {/* 借出按钮 */}
+        {activeTab === 'borrow' && selectedStudent && selectedBook && (
+          <div className="mt-6 flex justify-center">
+            <button onClick={handleLend} disabled={loading} className="bg-green-500 text-white px-8 py-3 rounded-lg hover:bg-green-600 text-lg font-semibold">
+              {loading ? '处理中...' : '📖 确认借出'}
+            </button>
+          </div>
+        )}
+        
+        {/* 归还图书界面 */}
+        {activeTab === 'return' && (
+          <div className="bg-white rounded-lg shadow-lg p-6 max-w-md mx-auto">
+            <h3 className="text-lg font-bold mb-4">↩️ 归还图书</h3>
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-2">借阅ID</label>
+              <input
+                type="number"
+                value={loanId}
+                onChange={(e) => setLoanId(e.target.value)}
+                placeholder="输入借阅记录ID"
+                className="w-full px-4 py-2 border rounded-lg"
+              />
+            </div>
+            <button onClick={handleReturn} disabled={loading} className="w-full bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600">
+              {loading ? '处理中...' : '确认归还'}
+            </button>
+          </div>
+        )}
       </main>
-
-      {/* 退出确认弹窗 */}
+      
       {showConfirm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl p-6 w-80">
             <h3 className="text-lg font-bold mb-4">确认退出</h3>
             <p className="text-gray-600 mb-6">确定要退出登录吗？</p>
             <div className="flex gap-3">
-              <button
-                onClick={handleLogout}
-                className="flex-1 bg-red-500 text-white py-2 rounded-lg hover:bg-red-600 transition"
-              >
-                确定
-              </button>
-              <button
-                onClick={() => setShowConfirm(false)}
-                className="flex-1 bg-gray-300 text-gray-700 py-2 rounded-lg hover:bg-gray-400 transition"
-              >
-                取消
-              </button>
+              <button onClick={handleLogout} className="flex-1 bg-red-500 text-white py-2 rounded-lg hover:bg-red-600">确定</button>
+              <button onClick={() => setShowConfirm(false)} className="flex-1 bg-gray-300 text-gray-700 py-2 rounded-lg hover:bg-gray-400">取消</button>
             </div>
           </div>
         </div>

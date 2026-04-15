@@ -8,7 +8,12 @@ function SystemLogs() {
   useEffect(() => {
     const fetchLogs = async () => {
       try {
-        const response = await fetch('http://localhost:3001/logs')
+        const token = localStorage.getItem('token') || localStorage.getItem('adminToken')
+        const response = await fetch('http://localhost:3001/api/logs', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        })
         if (!response.ok) {
           throw new Error('Failed to fetch logs')
         }
@@ -37,11 +42,7 @@ function SystemLogs() {
 
       {!loading && !error && logs.length > 0 && (
         <div style={{ overflowX: 'auto' }}>
-          <table
-            border="1"
-            cellPadding="10"
-            style={{ width: '100%', borderCollapse: 'collapse' }}
-          >
+          <table border="1" cellPadding="10" style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr>
                 <th>ID</th>

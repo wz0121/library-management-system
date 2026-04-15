@@ -3,12 +3,13 @@ const bcrypt = require('bcrypt');
 const prisma = new PrismaClient();
 
 async function main() {
-  // 清空现有数据（避免重复键冲突）
+  // 清空现有数据（注意顺序：先删除依赖表）
+  await prisma.loan.deleteMany();
+  await prisma.copy.deleteMany();
   await prisma.auditLog.deleteMany();
   await prisma.hold.deleteMany();
   await prisma.wishlist.deleteMany();
   await prisma.rating.deleteMany();
-  await prisma.loan.deleteMany();
   await prisma.book.deleteMany();
   await prisma.user.deleteMany();
   await prisma.config.deleteMany();
@@ -58,31 +59,26 @@ async function main() {
 
   // 图书数据
   const booksData = [
-    // Technology
-    { title: 'The Pragmatic Programmer', author: 'David Thomas', genre: 'Technology', available: true },
-    { title: 'Clean Code', author: 'Robert C. Martin', genre: 'Technology', available: true },
-    { title: 'Designing Data-Intensive Applications', author: 'Martin Kleppmann', genre: 'Technology', available: true },
-    { title: "You Don't Know JS", author: 'Kyle Simpson', genre: 'Technology', available: false },
-    // Fiction
-    { title: 'The Great Gatsby', author: 'F. Scott Fitzgerald', genre: 'Fiction', available: true },
-    { title: 'To Kill a Mockingbird', author: 'Harper Lee', genre: 'Fiction', available: true },
-    { title: '1984', author: 'George Orwell', genre: 'Fiction', available: true },
-    { title: 'Pride and Prejudice', author: 'Jane Austen', genre: 'Fiction', available: false },
-    // Science
-    { title: 'A Brief History of Time', author: 'Stephen Hawking', genre: 'Science', available: true },
-    { title: 'The Selfish Gene', author: 'Richard Dawkins', genre: 'Science', available: true },
-    { title: 'Cosmos', author: 'Carl Sagan', genre: 'Science', available: true },
-    { title: 'The Double Helix', author: 'James Watson', genre: 'Science', available: false },
-    // History
-    { title: 'Sapiens', author: 'Yuval Noah Harari', genre: 'History', available: true },
-    { title: 'Guns, Germs, and Steel', author: 'Jared Diamond', genre: 'History', available: true },
-    { title: 'The Silk Roads', author: 'Peter Frankopan', genre: 'History', available: true },
-    { title: "A People's History of the United States", author: 'Howard Zinn', genre: 'History', available: false },
-    // Management
-    { title: 'The Lean Startup', author: 'Eric Ries', genre: 'Management', available: true },
-    { title: 'Good to Great', author: 'Jim Collins', genre: 'Management', available: true },
-    { title: 'Drive', author: 'Daniel H. Pink', genre: 'Management', available: true },
-    { title: 'The Five Dysfunctions of a Team', author: 'Patrick Lencioni', genre: 'Management', available: false },
+    { title: 'The Pragmatic Programmer', author: 'David Thomas', genre: 'Technology' },
+    { title: 'Clean Code', author: 'Robert C. Martin', genre: 'Technology' },
+    { title: 'Designing Data-Intensive Applications', author: 'Martin Kleppmann', genre: 'Technology' },
+    { title: "You Don't Know JS", author: 'Kyle Simpson', genre: 'Technology' },
+    { title: 'The Great Gatsby', author: 'F. Scott Fitzgerald', genre: 'Fiction' },
+    { title: 'To Kill a Mockingbird', author: 'Harper Lee', genre: 'Fiction' },
+    { title: '1984', author: 'George Orwell', genre: 'Fiction' },
+    { title: 'Pride and Prejudice', author: 'Jane Austen', genre: 'Fiction' },
+    { title: 'A Brief History of Time', author: 'Stephen Hawking', genre: 'Science' },
+    { title: 'The Selfish Gene', author: 'Richard Dawkins', genre: 'Science' },
+    { title: 'Cosmos', author: 'Carl Sagan', genre: 'Science' },
+    { title: 'The Double Helix', author: 'James Watson', genre: 'Science' },
+    { title: 'Sapiens', author: 'Yuval Noah Harari', genre: 'History' },
+    { title: 'Guns, Germs, and Steel', author: 'Jared Diamond', genre: 'History' },
+    { title: 'The Silk Roads', author: 'Peter Frankopan', genre: 'History' },
+    { title: "A People's History of the United States", author: 'Howard Zinn', genre: 'History' },
+    { title: 'The Lean Startup', author: 'Eric Ries', genre: 'Management' },
+    { title: 'Good to Great', author: 'Jim Collins', genre: 'Management' },
+    { title: 'Drive', author: 'Daniel H. Pink', genre: 'Management' },
+    { title: 'The Five Dysfunctions of a Team', author: 'Patrick Lencioni', genre: 'Management' },
   ];
 
   const locationByGenre = {
@@ -94,15 +90,11 @@ async function main() {
   };
 
   for (const [index, book] of booksData.entries()) {
-    const locationMeta = locationByGenre[book.genre] || {
-      floor: 1,
-      libraryArea: 'General Collection',
-      shelfPrefix: 'G',
-    };
+    const locationMeta = locationByGenre[book.genre];
     const shelfNo = `${locationMeta.shelfPrefix}-${String((index % 8) + 1).padStart(2, '0')}`;
-    const shelfLevel = (index % 5) + 1;
-
-    await prisma.book.create({
+    
+    // 创建图书
+    const createdBook = await prisma.book.create({
       data: {
         title: book.title,
         author: book.author,
@@ -110,16 +102,37 @@ async function main() {
         genre: book.genre,
         description: `${book.title} is a great read.`,
         language: 'English',
-        shelfLocation: `Floor ${locationMeta.floor} | ${locationMeta.libraryArea} | ${shelfNo} | Level ${shelfLevel}`,
-        floor: locationMeta.floor,
-        libraryArea: locationMeta.libraryArea,
-        shelfNo,
-        shelfLevel,
-        available: book.available,
-        totalCopies: 1,
-        availableCopies: book.available ? 1 : 0,
       },
     });
+
+    // 为每本书创建3个副本
+    for (let copyNum = 1; copyNum <= 3; copyNum++) {
+      const barcode = `${createdBook.isbn.substring(0, 8)}-${copyNum.toString().padStart(2, '0')}`;
+      const shelfLevel = copyNum;
+      
+      // 设置部分副本为已借出（用于测试）
+      let status = 'AVAILABLE';
+      if (copyNum === 2 && book.title === 'Clean Code') {
+        status = 'BORROWED';
+      }
+      if (copyNum === 3 && book.title === '1984') {
+        status = 'BORROWED';
+      }
+
+      await prisma.copy.create({
+        data: {
+          bookId: createdBook.id,
+          barcode: barcode,
+          floor: locationMeta.floor,
+          libraryArea: locationMeta.libraryArea,
+          shelfNo: shelfNo,
+          shelfLevel: shelfLevel,
+          status: status,
+        },
+      });
+      
+      console.log(`创建副本: ${book.title} - 条码 ${barcode} - 状态 ${status}`);
+    }
   }
 
   // 添加配置项

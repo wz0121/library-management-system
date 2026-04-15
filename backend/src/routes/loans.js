@@ -1,6 +1,7 @@
 const express = require('express');
 const prisma = require('../lib/prisma');
 const { requireAuth } = require('../middleware/auth');
+const { requireLibrarianAuth } = require('../middleware/librarianAuth');
 
 const router = express.Router();
 
@@ -30,12 +31,8 @@ async function hasOverdueLoans(userId) {
 }
 
 // 1. 搜索学生（馆员/管理员专用）
-router.get('/users/search', requireAuth, async (req, res, next) => {
+router.get('/users/search', requireLibrarianAuth, async (req, res, next) => {
   try {
-    if (req.user.role !== 'LIBRARIAN' && req.user.role !== 'ADMIN') {
-      return res.status(403).json({ message: 'Access denied. Librarian or Admin only.' });
-    }
-
     const { keyword } = req.query;
     if (!keyword || keyword.trim() === '') {
       return res.status(400).json({ message: 'Keyword is required' });
@@ -78,12 +75,8 @@ router.get('/users/search', requireAuth, async (req, res, next) => {
 });
 
 // 2. 搜索图书（馆员/管理员专用）
-router.get('/books/search', requireAuth, async (req, res, next) => {
+router.get('/books/search', requireLibrarianAuth, async (req, res, next) => {
   try {
-    if (req.user.role !== 'LIBRARIAN' && req.user.role !== 'ADMIN') {
-      return res.status(403).json({ message: 'Access denied. Librarian or Admin only.' });
-    }
-
     const { keyword } = req.query;
     if (!keyword || keyword.trim() === '') {
       return res.status(400).json({ message: 'Keyword is required' });
@@ -114,12 +107,8 @@ router.get('/books/search', requireAuth, async (req, res, next) => {
 });
 
 // 3. 馆员借出图书给学生
-router.post('/lend', requireAuth, async (req, res, next) => {
+router.post('/lend', requireLibrarianAuth, async (req, res, next) => {
   try {
-    if (req.user.role !== 'LIBRARIAN' && req.user.role !== 'ADMIN') {
-      return res.status(403).json({ message: 'Access denied. Librarian or Admin only.' });
-    }
-
     const { userId, bookId } = req.body;
     if (!userId || !bookId) {
       return res.status(400).json({ message: 'userId and bookId are required' });
@@ -193,11 +182,11 @@ router.post('/lend', requireAuth, async (req, res, next) => {
     // 审计日志
     await prisma.auditLog.create({
       data: {
-        userId: req.user.id,
+        userId: null,
         action: 'LEND_BOOK',
         entity: 'Loan',
         entityId: loan.id,
-        detail: `Librarian ${req.user.email} lent "${book.title}" to student ${student.email}. Due date: ${dueDate.toISOString()}`
+        detail: `Librarian ${req.librarian.employeeId} lent "${book.title}" to student ${student.email}. Due date: ${dueDate.toISOString()}`
       }
     });
 
@@ -220,7 +209,93 @@ router.post('/lend', requireAuth, async (req, res, next) => {
 
 
 
-// 4. 获取当前登录用户的个人借阅历史
+// 4. 管理员获取当前正在借阅的记录
+router.get('/records', requireLibrarianAuth, async (req, res, next) => {
+  try {
+    const loans = await prisma.loan.findMany({
+      where: { returnDate: null },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            studentId: true,
+            email: true,
+          }
+        },
+        book: {
+          select: {
+            id: true,
+            title: true,
+            author: true,
+            isbn: true,
+          }
+        }
+      },
+      orderBy: { checkoutDate: 'desc' }
+    });
+
+    res.json({ loans });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 5. 管理员处理还书
+router.post('/return', requireLibrarianAuth, async (req, res, next) => {
+  try {
+    const { loanId } = req.body;
+    if (!loanId) {
+      return res.status(400).json({ message: 'loanId is required' });
+    }
+
+    const loan = await prisma.loan.findUnique({
+      where: { id: parseInt(loanId) },
+      include: {
+        book: true,
+        user: true,
+      }
+    });
+
+    if (!loan) {
+      return res.status(404).json({ message: 'Loan record not found' });
+    }
+    if (loan.returnDate) {
+      return res.status(400).json({ message: 'This loan has already been returned' });
+    }
+
+    const returnDate = new Date();
+
+    await prisma.loan.update({
+      where: { id: loan.id },
+      data: { returnDate }
+    });
+
+    await prisma.book.update({
+      where: { id: loan.bookId },
+      data: { availableCopies: { increment: 1 } }
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        userId: null,
+        action: 'RETURN_BOOK',
+        entity: 'Loan',
+        entityId: loan.id,
+        detail: `Librarian ${req.librarian.employeeId} processed return for loan ${loan.id}. Book: ${loan.book.title}. Student: ${loan.user.email}`
+      }
+    });
+
+    res.json({
+      message: 'Book return processed successfully',
+      returnDate
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 6. 获取当前登录用户的个人借阅历史
 router.get('/my-history', requireAuth, async (req, res, next) => {
   try {
     // 从 requireAuth 中间件获取当前用户的 ID

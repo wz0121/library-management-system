@@ -11,8 +11,6 @@ async function main() {
   await prisma.loan.deleteMany();
   await prisma.book.deleteMany();
   await prisma.user.deleteMany();
-  await prisma.announcementPublisher.deleteMany();
-  await prisma.announcement.deleteMany();
   await prisma.config.deleteMany();
 
   // 创建用户
@@ -87,7 +85,23 @@ async function main() {
     { title: 'The Five Dysfunctions of a Team', author: 'Patrick Lencioni', genre: 'Management', available: false },
   ];
 
-  for (const book of booksData) {
+  const locationByGenre = {
+    Technology: { floor: 3, libraryArea: 'Tech Stack', shelfPrefix: 'T' },
+    Fiction: { floor: 2, libraryArea: 'Literature Hall', shelfPrefix: 'F' },
+    Science: { floor: 4, libraryArea: 'Science Archive', shelfPrefix: 'S' },
+    History: { floor: 5, libraryArea: 'History Collection', shelfPrefix: 'H' },
+    Management: { floor: 6, libraryArea: 'Business Corner', shelfPrefix: 'M' },
+  };
+
+  for (const [index, book] of booksData.entries()) {
+    const locationMeta = locationByGenre[book.genre] || {
+      floor: 1,
+      libraryArea: 'General Collection',
+      shelfPrefix: 'G',
+    };
+    const shelfNo = `${locationMeta.shelfPrefix}-${String((index % 8) + 1).padStart(2, '0')}`;
+    const shelfLevel = (index % 5) + 1;
+
     await prisma.book.create({
       data: {
         title: book.title,
@@ -96,7 +110,11 @@ async function main() {
         genre: book.genre,
         description: `${book.title} is a great read.`,
         language: 'English',
-        shelfLocation: `${book.genre}-${Math.floor(Math.random() * 100)}`,
+        shelfLocation: `Floor ${locationMeta.floor} | ${locationMeta.libraryArea} | ${shelfNo} | Level ${shelfLevel}`,
+        floor: locationMeta.floor,
+        libraryArea: locationMeta.libraryArea,
+        shelfNo,
+        shelfLevel,
         available: book.available,
         totalCopies: 1,
         availableCopies: book.available ? 1 : 0,
@@ -111,59 +129,6 @@ async function main() {
       value: '0.50',
     },
   });
-
-  // 公告数据
-  const adminUser = await prisma.user.findFirst({ where: { role: 'ADMIN' } });
-  const librarianUser = await prisma.user.findFirst({ where: { role: 'LIBRARIAN' } });
-
-  const announcementsData = [
-    {
-      title: '图书馆系统升级通知',
-      content: '为了提供更好的服务，图书馆管理系统将于本周末进行升级维护。届时系统将暂停服务约2小时，请各位读者提前安排好借阅计划。',
-      isPinned: true,
-    },
-    {
-      title: '新增电子资源访问指南',
-      content: '图书馆已新增多个电子数据库资源，包括IEEE Xplore、SpringerLink等。读者可通过系统首页的"电子资源"入口访问，凭学号即可免费使用。',
-      isPinned: true,
-    },
-    {
-      title: '期末考试期间延长开放时间',
-      content: '为配合期末考试复习需求，图书馆将于12月15日至1月5日期间延长开放时间至每晚22:00。祝各位同学考试顺利！',
-      isPinned: false,
-    },
-    {
-      title: '新书推荐：计算机科学类',
-      content: '本月新到一批计算机科学类图书，涵盖人工智能、数据结构、算法设计等热门领域。欢迎读者前来借阅或在系统中预约。',
-      isPinned: false,
-    },
-    {
-      title: '图书馆志愿者招募',
-      content: '图书馆现面向全校招募志愿者，协助图书整理、秩序维护等工作。参与志愿服务可获得额外借阅额度，有意者请联系图书馆办公室。',
-      isPinned: false,
-    },
-    {
-      title: '关于规范图书归还的提醒',
-      content: '近期发现部分读者逾期未归还图书。请广大读者遵守借阅规定，按时归还图书，以免影响其他读者的借阅权益。逾期将按规定收取滞纳金。',
-      isPinned: false,
-    },
-  ];
-
-  for (const [index, announcement] of announcementsData.entries()) {
-    const publisher = index % 2 === 0 ? adminUser : librarianUser;
-    await prisma.announcement.create({
-      data: {
-        title: announcement.title,
-        content: announcement.content,
-        isPinned: announcement.isPinned,
-        publishers: {
-          create: {
-            userId: publisher.id,
-          },
-        },
-      },
-    });
-  }
 
   console.log('Seed data inserted successfully');
 }

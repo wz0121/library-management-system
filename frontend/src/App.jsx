@@ -10,6 +10,7 @@ import SystemLogs from './adminLogs/SystemLogs';
 import LibrarianApp from './librarian/LibrarianApp';
 import Announcements from './pages/Announcements';
 import AdminAnnouncements from './pages/AdminAnnouncements';
+import UserManagement from './pages/UserManagement';
 
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -40,11 +41,12 @@ function App() {
   return (
     <Routes>
       <Route path="/register" element={<Register />} />
-      <Route path="/login" element={<Login />} />
+      <Route path="/login" element={<Login onLogin={handleLogin} />} />
       <Route path="/librarian-login" element={<LibrarianApp />} />
       <Route path="/admin-login" element={<AdminLogin />} />
       <Route path="/admin-dashboard" element={<AdminDashboard />} />
       <Route path="/admin-logs" element={<SystemLogs />} />
+      <Route path="/admin/users" element={<UserManagement />} />
       <Route path="/announcements" element={<Announcements />} />
       <Route path="/admin/announcements" element={<AdminAnnouncements />} />
       <Route path="/" element={

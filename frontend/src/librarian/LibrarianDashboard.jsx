@@ -1,8 +1,8 @@
 import { useState } from 'react'
 
-export default function LibrarianDashboard({ librarian, onLogout }) {
+export default function LibrarianDashboard({ librarian, onLogout, onNavigateToBooks }) {
   const [showConfirm, setShowConfirm] = useState(false)
-  const [activeTab, setActiveTab] = useState('borrow') // borrow, return, search
+  const [activeTab, setActiveTab] = useState('borrow') // borrow, return
   
   // 借阅相关状态
   const [studentSearch, setStudentSearch] = useState('')
@@ -160,20 +160,34 @@ export default function LibrarianDashboard({ librarian, onLogout }) {
           <p className="opacity-90">欢迎回来，您可以通过下方功能管理图书馆系统。</p>
         </div>
         
-        {/* 标签页切换 */}
-        <div className="flex gap-2 mb-6 border-b">
-          <button
-            onClick={() => { setActiveTab('borrow'); setMessage('') }}
-            className={`px-6 py-2 text-lg font-medium ${activeTab === 'borrow' ? 'border-b-2 border-blue-500 text-blue-600' : 'text-gray-500'}`}
-          >
-            📖 借阅图书
-          </button>
-          <button
-            onClick={() => { setActiveTab('return'); setMessage('') }}
-            className={`px-6 py-2 text-lg font-medium ${activeTab === 'return' ? 'border-b-2 border-blue-500 text-blue-600' : 'text-gray-500'}`}
-          >
-            ↩️ 归还图书
-          </button>
+        {/* 功能卡片 */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <div className="bg-white p-6 rounded-lg shadow-lg hover:shadow-xl transition">
+            <div className="text-4xl mb-4">📖</div>
+            <h2 className="text-xl font-bold mb-2">借阅管理</h2>
+            <p className="text-gray-500 text-sm mb-4">借书、还书操作</p>
+            <button onClick={() => setActiveTab('borrow')} className="w-full bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition">
+              借书
+            </button>
+          </div>
+          
+          <div className="bg-white p-6 rounded-lg shadow-lg hover:shadow-xl transition">
+            <div className="text-4xl mb-4">↩️</div>
+            <h2 className="text-xl font-bold mb-2">归还管理</h2>
+            <p className="text-gray-500 text-sm mb-4">处理图书归还</p>
+            <button onClick={() => setActiveTab('return')} className="w-full bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition">
+              还书
+            </button>
+          </div>
+          
+          <div className="bg-white p-6 rounded-lg shadow-lg hover:shadow-xl transition">
+            <div className="text-4xl mb-4">📚</div>
+            <h2 className="text-xl font-bold mb-2">图书管理</h2>
+            <p className="text-gray-500 text-sm mb-4">添加、编辑、删除图书</p>
+            <button onClick={onNavigateToBooks} className="w-full bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition">
+              进入 →
+            </button>
+          </div>
         </div>
         
         {message && (
@@ -185,7 +199,6 @@ export default function LibrarianDashboard({ librarian, onLogout }) {
         {/* 借阅图书界面 */}
         {activeTab === 'borrow' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* 左侧：搜索学生 */}
             <div className="bg-white rounded-lg shadow-lg p-6">
               <h3 className="text-lg font-bold mb-4">👤 选择学生</h3>
               <div className="flex gap-2 mb-4">
@@ -201,7 +214,7 @@ export default function LibrarianDashboard({ librarian, onLogout }) {
                 </button>
               </div>
               {students.length > 0 && (
-                <div className="border rounded-lg divide-y">
+                <div className="border rounded-lg divide-y max-h-60 overflow-auto">
                   {students.map(s => (
                     <div key={s.id} className={`p-3 cursor-pointer hover:bg-gray-50 ${selectedStudent?.id === s.id ? 'bg-blue-50 border-l-4 border-blue-500' : ''}`} onClick={() => setSelectedStudent(s)}>
                       <p className="font-medium">{s.name}</p>
@@ -218,7 +231,6 @@ export default function LibrarianDashboard({ librarian, onLogout }) {
               )}
             </div>
             
-            {/* 右侧：搜索图书 */}
             <div className="bg-white rounded-lg shadow-lg p-6">
               <h3 className="text-lg font-bold mb-4">📚 选择图书</h3>
               <div className="flex gap-2 mb-4">
@@ -234,7 +246,7 @@ export default function LibrarianDashboard({ librarian, onLogout }) {
                 </button>
               </div>
               {books.length > 0 && (
-                <div className="border rounded-lg divide-y max-h-80 overflow-auto">
+                <div className="border rounded-lg divide-y max-h-60 overflow-auto">
                   {books.map(b => (
                     <div key={b.id} className={`p-3 cursor-pointer hover:bg-gray-50 ${selectedBook?.id === b.id ? 'bg-blue-50 border-l-4 border-blue-500' : ''}`} onClick={() => setSelectedBook(b)}>
                       <p className="font-medium">{b.title}</p>

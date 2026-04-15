@@ -185,7 +185,66 @@ function getCurrentReader(req, res) {
 router.post('/register', registerReader);
 router.post('/login', loginReader);
 router.get('/me', requireAuth, getCurrentReader);
+// 获取所有用户列表（管理员专用）
+async function getAllUsers(req, res, next) {
+  try {
+    if (req.user.role !== 'ADMIN') {
+      return res.status(403).json({ message: '只有管理员可以访问' });
+    }
 
+    const users = await prisma.user.findMany({
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        studentId: true,
+        role: true,
+        createdAt: true,
+      },
+      orderBy: { id: 'asc' }
+    });
+
+    res.json({ users });
+  } catch (error) {
+    next(error);
+  }
+}
+
+// 修改用户角色（管理员专用）
+async function updateUserRole(req, res, next) {
+  try {
+    if (req.user.role !== 'ADMIN') {
+      return res.status(403).json({ message: '只有管理员可以修改角色' });
+    }
+
+    const userId = parseInt(req.params.id);
+    const { role } = req.body;
+
+    if (!role || !['STUDENT', 'LIBRARIAN', 'ADMIN'].includes(role)) {
+      return res.status(400).json({ message: '无效的角色类型' });
+    }
+
+    const user = await prisma.user.update({
+      where: { id: userId },
+      data: { role: role },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        studentId: true,
+        role: true,
+      }
+    });
+
+    res.json({ message: '角色更新成功', user });
+  } catch (error) {
+    next(error);
+  }
+}
+
+// 添加路由
+router.get('/all', requireAuth, getAllUsers);
+router.put('/:id/role', requireAuth, updateUserRole);
 module.exports = router;
 module.exports.registerReader = registerReader;
 module.exports.loginReader = loginReader;

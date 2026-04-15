@@ -8,6 +8,9 @@ function BookSearch() {
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
   const [message, setMessage] = useState('');
+  const [selectedBook, setSelectedBook] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState('');
 
   const token = localStorage.getItem('token');
 
@@ -68,6 +71,31 @@ function BookSearch() {
     }
   };
 
+  const handleViewDetails = async (bookId) => {
+    setDetailLoading(true);
+    setDetailError('');
+
+    try {
+      const response = await fetch(`http://localhost:3001/books/${bookId}`);
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Failed to load book detail');
+      }
+
+      setSelectedBook(result.data);
+    } catch (error) {
+      setDetailError(error.message);
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  const closeDetails = () => {
+    setSelectedBook(null);
+    setDetailError('');
+  };
+
   const handleReset = () => {
     setSearchTitle('');
     setSearchAuthor('');
@@ -120,14 +148,14 @@ function BookSearch() {
                   <h3 style={{ marginTop: 0, color: '#007bff' }}>{book.title}</h3>
                   <p><strong>Author:</strong> {book.author}</p>
                   <p><strong>ISBN:</strong> {book.isbn}</p>
-                  <p><strong>Genre:</strong> {book.genre}</p>
-                  <p><strong>Location:</strong> {book.shelfLocation || 'N/A'}</p>
-                  <p><strong>Status:</strong>
-                    <span style={{ color: book.available && book.availableCopies > 0 ? '#28a745' : '#dc3545', fontWeight: 'bold' }}>
-                      {book.available && book.availableCopies > 0 ? 'Available' : 'Borrowed'}
-                    </span>
-                  </p>
-                  <p><strong>Stock:</strong> {book.availableCopies || 0} / {book.totalCopies || 1}</p>
+                  <div style={{ display: 'flex', gap: '10px', marginTop: '14px' }}>
+                    <button
+                      onClick={() => handleViewDetails(book.id)}
+                      style={{ padding: '6px 12px', background: '#6c757d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                    >
+                      查看详情
+                    </button>
+                  </div>
                   {book.available && book.availableCopies > 0 && (
                     <button onClick={() => handleBorrow(book.id)} style={{ marginTop: '10px', padding: '6px 12px', background: '#28a745', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
                       Borrow
@@ -138,6 +166,68 @@ function BookSearch() {
             </div>
           )}
         </>
+      )}
+
+      {selectedBook && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          onClick={closeDetails}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0, 0, 0, 0.55)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px',
+            zIndex: 1000,
+          }}
+        >
+          <div
+            onClick={(event) => event.stopPropagation()}
+            style={{
+              width: 'min(560px, 100%)',
+              background: 'white',
+              borderRadius: '12px',
+              padding: '24px',
+              boxShadow: '0 20px 60px rgba(0, 0, 0, 0.25)',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', alignItems: 'flex-start' }}>
+              <div>
+                <h2 style={{ margin: 0, color: '#111827' }}>{selectedBook.title}</h2>
+                <p style={{ margin: '8px 0 0', color: '#6b7280' }}>Book ID: {selectedBook.id}</p>
+              </div>
+              <button
+                onClick={closeDetails}
+                style={{ border: 'none', background: 'transparent', fontSize: '20px', cursor: 'pointer', color: '#6b7280' }}
+                aria-label="Close details"
+              >
+                ×
+              </button>
+            </div>
+
+            {detailLoading && <p style={{ marginTop: '20px' }}>Loading details...</p>}
+            {detailError && <p style={{ marginTop: '20px', color: '#dc2626' }}>{detailError}</p>}
+
+            {!detailLoading && !detailError && (
+              <div style={{ marginTop: '20px', display: 'grid', gap: '10px' }}>
+                <p><strong>Author:</strong> {selectedBook.author}</p>
+                <p><strong>ISBN:</strong> {selectedBook.isbn}</p>
+                <p><strong>Genre:</strong> {selectedBook.genre}</p>
+                <p><strong>Legacy Location:</strong> {selectedBook.shelfLocation || 'N/A'}</p>
+                <p>
+                  <strong>Status:</strong>{' '}
+                  <span style={{ color: selectedBook.available && selectedBook.availableCopies > 0 ? '#28a745' : '#dc3545', fontWeight: 'bold' }}>
+                    {selectedBook.available && selectedBook.availableCopies > 0 ? 'Available' : 'Borrowed'}
+                  </span>
+                </p>
+                <p><strong>Stock:</strong> {selectedBook.availableCopies || 0} / {selectedBook.totalCopies || 1}</p>
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

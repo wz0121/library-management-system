@@ -14,6 +14,10 @@ const BOOK_SELECT = {
   description: true,
   language: true,
   shelfLocation: true,
+  floor: true,
+  libraryArea: true,
+  shelfNo: true,
+  shelfLevel: true,
   available: true,
   totalCopies: true,
   availableCopies: true,
@@ -167,7 +171,12 @@ router.get('/search', async (req, res) => {
         description: true,
         language: true,
         shelfLocation: true,
+        floor: true,
+        libraryArea: true,
+        shelfNo: true,
+        shelfLevel: true,
         available: true,
+        totalCopies: true,
         availableCopies: true,
       },
     });
@@ -237,6 +246,12 @@ router.post('/', requireLibrarianAuth, async (req, res) => {
   const description = normalizeText(req.body.description) || null;
   const language = normalizeText(req.body.language) || 'English';
   const shelfLocation = normalizeText(req.body.shelfLocation) || null;
+  const libraryArea = normalizeText(req.body.libraryArea) || null;
+  const shelfNo = normalizeText(req.body.shelfNo) || null;
+  const floorInput = parseOptionalInteger(req.body.floor);
+  const shelfLevelInput = parseOptionalInteger(req.body.shelfLevel);
+  const floor = floorInput ?? null;
+  const shelfLevel = shelfLevelInput ?? null;
   const totalCopiesInput = parseOptionalInteger(req.body.totalCopies);
   const availableCopiesInput = parseOptionalInteger(req.body.availableCopies);
   const totalCopies = totalCopiesInput ?? 1;
@@ -249,13 +264,18 @@ router.post('/', requireLibrarianAuth, async (req, res) => {
   }
 
   if (
+    Number.isNaN(floor) ||
+    Number.isNaN(shelfLevel) ||
     Number.isNaN(totalCopies) ||
     Number.isNaN(availableCopies) ||
+    (floor !== null && floor < 1) ||
+    (shelfLevel !== null && shelfLevel < 1) ||
     totalCopies < 1 ||
     availableCopies < 0
   ) {
     return res.status(400).json({
-      error: 'totalCopies must be at least 1 and availableCopies cannot be negative',
+      error:
+        'floor and shelfLevel must be positive integers when provided, totalCopies must be at least 1 and availableCopies cannot be negative',
     });
   }
 
@@ -275,6 +295,10 @@ router.post('/', requireLibrarianAuth, async (req, res) => {
         description,
         language,
         shelfLocation,
+        floor,
+        libraryArea,
+        shelfNo,
+        shelfLevel,
         totalCopies,
         availableCopies,
         available: availableCopies > 0,

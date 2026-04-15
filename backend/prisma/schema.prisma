@@ -43,6 +43,10 @@ model Book {
   description    String?
   language       String   @default("English")
   shelfLocation  String?
+  floor          Int?
+  libraryArea    String?
+  shelfNo        String?
+  shelfLevel     Int?
   available      Boolean  @default(true)        // 保留兼容
   totalCopies    Int      @default(1)           // 新增
   availableCopies Int     @default(1)           // 新增
